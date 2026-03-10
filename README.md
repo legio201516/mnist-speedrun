@@ -24,10 +24,10 @@ To download the dataset, run:
 
 ### Profiling (smart & automated)
 I profiled everything mainly with **NVIDIA Nsight Systems (`nsys`)**.  
-To save hours I wrote a **new innovative Python script** (`profile.py`) that:
+To save hours I wrote a **new innovative Python script** (`nsysrun.py`) that:
 - Automatically runs `nsys profile` on any file
 - Extracts only the key kernels (`kernel_tiled_matmul_*`, memcpy, etc.)
 - Saves clean synthetic `.txt` reports directly into the `/profiles/` folder
 
 ```bash
-python3 nsysrun.py --file 05_cuda_3layer_512_tiled_powerful.cu
+ python3 nsysrun.py run wanted_output_txt_file_name ./05_cuda_3layer_512_tiled_powerful.o

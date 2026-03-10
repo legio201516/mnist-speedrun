@@ -6,7 +6,7 @@ import torch.optim as optim
 
 TRAIN_SIZE=50000
 TEST_SIZE=10000
-epochs=10
+epochs=40
 learning_rate=0.01
 batch_size=128
 one_run=TRAIN_SIZE//batch_size
@@ -45,7 +45,6 @@ class CUDATimer:
         self.end.record()
         self.end.synchronize()
         self.stats[self.key] += self.start.elapsed_time(self.end) / 1000
-
 class MLP(nn.Module):
     def __init__ (self, in_features, hidden_features):
         super().__init__()
@@ -53,11 +52,11 @@ class MLP(nn.Module):
         nn.Flatten(),
         nn.Linear(in_features, hidden_features),
         nn.ReLU(),
+        nn.Linear(hidden_features, hidden_features), # ← nouvelle couche cachée
+        nn.ReLU(),
         nn.Linear(hidden_features, 10))
-
-    def forward(self, x):  
+    def forward(self, x):
         return self.layers(x)
-
 #Train model while writing timing stats
 def training(yourmodel,yourdata,yourlabels,totalepochs, stats):
 
@@ -120,7 +119,7 @@ if __name__ == "__main__":
     print(f"Number of epochs: {epochs}")
 
     print(x_train.shape, x_test.shape, x_train.device)
-    model = MLP(784,256)
+    model = MLP(784,512)
     model.to("cuda")
     print(model)
     sample = x_train[:batch_size]
@@ -137,7 +136,7 @@ if __name__ == "__main__":
             scale = (2.0 / fan_in) ** 0.5
             model.layers[i].weight.uniform_(-scale, scale)
             model.layers[i].bias.zero_()
-
+    model = torch.compile(model)    
     # TRAIN
     torch.cuda.synchronize()
     start = time.time()

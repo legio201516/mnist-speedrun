@@ -44,9 +44,10 @@ class NeuralNetwork:
     def __init__(self, input_size, hidden_size, output_size):
         self.W1=initialize_weights(input_size,hidden_size)
         self.b1=initialize_bias(hidden_size)
-        self.W2=initialize_weights(hidden_size,output_size)
-        self.b2=initialize_bias(output_size)
-
+        self.W2=initialize_weights(hidden_size,hidden_size)
+        self.b2=initialize_bias(hidden_size)
+        self.W3=initialize_weights(hidden_size,output_size)
+        self.b3=initialize_bias(output_size)
 
     def forward(self,X):
         batch_size=X.shape[0]
@@ -54,23 +55,43 @@ class NeuralNetwork:
         Z1=X_flat@self.W1+self.b1
         A1=np.maximum(Z1,0)
         Z2=A1@self.W2+self.b2
-        return Z2, (X_flat,Z1,A1)
-
+        A2=np.maximum(Z2,0)
+        Z3=A2@self.W3+self.b3
+        return Z3, (X_flat,Z1,A1,Z2,A2)
+    """def forward(self,X):
+    batch_size=X.shape[0]
+    X_flat = X.reshape(batch_size, -1)
+    Z1=X_flat@self.W1+self.b1
+    A1=np.maximum(Z1,0)
+    Z2=A1@self.W2+self.b2
+    A2=np.maximum(Z2,0)
+    Z3=A2@self.W3+self.b3
+    return Z3, (X_flat,Z1,A1,Z2,A2) # cache mis à jour"""
     def backward(self,cache,grad_output):
-        (X_flat,Z1,A1)=cache
-        dW2 = A1.T @grad_output# dW2 = X2.T @dLoss
-        db2 = np.sum(grad_output, axis=0, keepdims=True)
-        dA1 = grad_output @ self.W2.T
+
+        (X_flat,Z1,A1,Z2,A2)=cache
+        dW3 = A2.T @grad_output# dW3 = X2.T @dLoss
+        db3 = np.sum(grad_output, axis=0, keepdims=True)
+        dA2 = grad_output @ self.W3.T
+
+        dZ2 = dA2 * (Z2 > 0)#dreluoutput=drelu(X2)
+        dW2 = A1.T @dZ2# dW2 = X3.T @dZ2
+        db2 = np.sum(dZ2, axis=0, keepdims=True)
+        dA1 = dZ2 @ self.W2.T
         dZ1 = dA1 * (Z1 > 0)#dreluoutput=drelu(X1)
         dW1 = X_flat.T @ dZ1# dW1 = X1.T @dreluoutput
         db1 = np.sum(dZ1, axis=0, keepdims=True)
-        return dW1,db1,dW2,db2
-    def update_weights(self, grad_weights1, grad_bias1, grad_weights2, grad_bias2,lr):
+
+        return dW1,db1,dW2,db2,dW3,db3
+    
+
+    def update_weights(self, grad_weights1, grad_bias1, grad_weights2, grad_bias2,grad_weights3, grad_bias3,lr):
         self.W1-=lr*grad_weights1
         self.b1-=lr*grad_bias1
         self.W2-=lr*grad_weights2
         self.b2-=lr*grad_bias2
-
+        self.W3-=lr*grad_weights3
+        self.b3-=lr*grad_bias3
 def train_timed(model, X_train, y_train, batch_size, epochs, learning_rate):
     timing_stats = {
         'data_loading': 0.0,
@@ -98,8 +119,8 @@ def train_timed(model, X_train, y_train, batch_size, epochs, learning_rate):
             grad_output = (softmax_probs - y_true_one_hot) /batch_size
             
             # Backward
-            grad_weights1, grad_bias1, grad_weights2, grad_bias2 = model.backward(my_cache,grad_output)
-            model.update_weights(grad_weights1, grad_bias1, grad_weights2, grad_bias2,lr=learning_rate)
+            grad_weights1, grad_bias1, grad_weights2, grad_bias2,grad_weights3, grad_bias3 = model.backward(my_cache,grad_output)
+            model.update_weights(grad_weights1, grad_bias1, grad_weights2, grad_bias2,grad_weights3, grad_bias3,lr=learning_rate)
         avg_loss=total_loss/(len(x_train) // batch_size)
         print( avg_loss)
 def evaluate(model, x_test,y_test,TEST_SIZE ):
@@ -125,7 +146,7 @@ if __name__ == "__main__":
     epochs=10
     lr=0.01
     total_loss=0.0
-    my_model=NeuralNetwork(784,256,10)
+    my_model=NeuralNetwork(784,512,10)
 
     start = time.time()
     train_timed(my_model, x_train,y_train, batch_size, epochs, lr)

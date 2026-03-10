@@ -1,6 +1,9 @@
 # mnist-cuda-speedrun
 
 From pure NumPy to hand-written CUDA tiled matmuls — a clean progression showing every step toward maximum efficiency on MNIST.
+## Setup
+To download the dataset, run:
+`bash download_data.sh`
 
 ## Implementations
 

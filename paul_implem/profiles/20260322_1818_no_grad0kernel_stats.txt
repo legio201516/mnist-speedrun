@@ -1,0 +1,42 @@
+# 20260322_1818_no_grad0kernel_
+# Epoch 39 loss: 0.0383
+# Total time is   GPU compute:     7.796s
+
+ ** OS Runtime Summary
+   Time%           Total(ns)          Calls          Avg(ns)          Max(ns)  Name
+  ------------------------------------------------------------------------------------------
+    51.4%      17 494 060 689            179       97 732 183      766 217 439  poll
+    47.1%      16 001 785 873             18      888 988 104    4 000 102 871  pthread_cond_timedwait
+     1.1%         390 196 774            504          774 200      237 705 151  ioctl
+
+ ** CUDA API Summary
+   Time%           Total(ns)          Calls          Avg(ns)          Max(ns)  Name
+  ------------------------------------------------------------------------------------------
+    46.2%       2 696 167 189        421 200            6 401        1 945 840  cudaLaunchKernel_v7000
+    15.2%         885 741 669         31 247           28 346          368 020  cudaMemcpy_v3020
+    14.8%         863 125 046        171 600            5 030          334 718  cudaMemsetAsync_v3020
+     4.2%         246 122 058              2      123 061 029      242 555 188  cudaHostAlloc_v3020
+     3.9%         228 994 471         31 200            7 340       11 541 830  cudaLaunchKernelExC_v11060
+
+ ** CUDA GPU Kernel Summary
+   Time%           Total(ns)          Calls          Avg(ns)          Max(ns)  Name
+  ------------------------------------------------------------------------------------------
+    26.3%         575 674 707         31 200           18 451           27 744  ampere_sgemm_128x32_nn
+    18.3%         400 259 776         31 200           12 829           26 176  ampere_sgemm_64x64_nt
+    11.9%         261 075 258         15 600           16 736           20 768  ampere_sgemm_32x128_tn
+    10.6%         231 660 610         15 600           14 850           18 496  Kernel2
+     8.7%         191 613 513         93 600            2 047            6 432  kernel_update_weights
+     4.3%          94 624 086         31 200            3 033            3 776  relu_back_kernel
+
+ ** CUDA MemOps Summary by Time
+   Time%           Total(ns)          Count          Avg(ns)          Max(ns)  Op
+  ------------------------------------------------------------------------------------------
+   100.0%         531 902 100         31 207           17 044          158 847  HtoD
+     0.0%              37 600             40              940            1 184  DtoH
+
+
+
+No stupid grad_0_kernel anymore, 
+But a bit disapointed that the time (143 074 541 ms) spent on grad_0_kernel is now tripled into cudaMemsetAsync_v3020 
+that went from 312 516 590 to 863 125 046 ms...
+Turns out that its optimzation is probably working better with bigger matrices.

@@ -1,0 +1,40 @@
+# 20260320_1348_allcublas_
+# Epoch 39 loss: 0.0383
+# Total time is   GPU compute:     5.828s
+
+ ** OS Runtime Summary
+   Time%           Total(ns)          Calls          Avg(ns)          Max(ns)  Name
+  ------------------------------------------------------------------------------------------
+    54.9%      12 426 407 976            133       93 431 639      310 989 886  poll
+    44.2%      10 000 871 597             13      769 297 815    3 999 993 948  pthread_cond_timedwait
+     0.7%         160 353 208            495          323 946       78 946 457  ioctl
+
+ ** CUDA API Summary
+   Time%           Total(ns)          Calls          Avg(ns)          Max(ns)  Name
+  ------------------------------------------------------------------------------------------
+    55.7%       2 866 465 963         46 806           61 241          788 287  cudaMemcpy_v3020
+    28.6%       1 473 224 392        499 200            2 951        1 227 913  cudaLaunchKernel_v7000
+     3.9%         199 041 381         78 000            2 552          162 894  cudaMemsetAsync_v3020
+     2.0%         104 108 245         31 200            3 337        3 942 907  cudaLaunchKernelExC_v11060
+     1.9%          96 562 730             24        4 023 447       96 242 809  cudaMalloc_v3020
+
+ ** CUDA GPU Kernel Summary
+   Time%           Total(ns)          Calls          Avg(ns)          Max(ns)  Name
+  ------------------------------------------------------------------------------------------
+    21.9%         866 740 220         46 800           18 520           20 161  kernel_bias_back
+    20.1%         793 592 430         31 200           25 436           31 617  ampere_sgemm_128x32_nn
+    13.9%         548 143 898         31 200           17 569           30 497  ampere_sgemm_64x64_nt
+     9.1%         359 587 160         15 600           23 050           24 353  ampere_sgemm_32x128_tn
+     8.0%         317 774 226         15 600           20 370           21 537  Kernel2
+     6.6%         261 476 156         93 600            2 794            7 520  kernel_update_weights
+     4.9%         193 128 337         93 600            2 063            5 185  grad_0_kernel
+
+ ** CUDA MemOps Summary by Time
+   Time%           Total(ns)          Count          Avg(ns)          Max(ns)  Op
+  ------------------------------------------------------------------------------------------
+    97.4%         550 136 289         31 206           17 629          241 770  HtoD
+     2.6%          14 722 951         15 600              944            2 944  DtoH
+
+
+
+Meme setup : 19.49193787574768 s pour pytorch compiled. et 13.745513439178467 pas compiled

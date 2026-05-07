@@ -8,7 +8,7 @@ TRAIN_SIZE=50000
 TEST_SIZE=10000
 epochs=40
 learning_rate=0.01
-batch_size=128
+batch_size=512
 one_run=TRAIN_SIZE//batch_size
 
 x_train_np=np.fromfile("data/X_train.bin",dtype=np.float32)
@@ -23,8 +23,8 @@ X_test_np=x_test_np[:TEST_SIZE * 28 * 28].reshape(TEST_SIZE,1,28,28)
 mean,std=X_train_np.mean(),X_train_np.std()
 X_train_np = (X_train_np - mean) / std
 X_test_np= (X_test_np - mean) / std
-# To cuda 
 
+# To cuda 
 x_train=torch.from_numpy(X_train_np).to('cuda')
 x_test=torch.from_numpy(X_test_np).to('cuda')
 y_test = torch.from_numpy(y_test_np[:TEST_SIZE]).long().to("cuda")
@@ -52,7 +52,7 @@ class MLP(nn.Module):
         nn.Flatten(),
         nn.Linear(in_features, hidden_features),
         nn.ReLU(),
-        nn.Linear(hidden_features, hidden_features), # ← nouvelle couche cachée
+        nn.Linear(hidden_features, hidden_features),
         nn.ReLU(),
         nn.Linear(hidden_features, 10))
     def forward(self, x):

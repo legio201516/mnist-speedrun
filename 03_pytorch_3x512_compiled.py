@@ -8,7 +8,7 @@ TRAIN_SIZE=50000
 TEST_SIZE=10000
 epochs=40
 learning_rate=0.01
-batch_size=128
+batch_size=512
 one_run=TRAIN_SIZE//batch_size
 
 x_train_np=np.fromfile("data/X_train.bin",dtype=np.float32)

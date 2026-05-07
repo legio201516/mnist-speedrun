@@ -1,0 +1,36 @@
+# 20260322_1841_bacth_size_1024_
+# Epoch 39 loss: 0.2140
+# Total time is   GPU compute:     2.177s
+
+ ** OS Runtime Summary
+   Time%           Total(ns)          Calls          Avg(ns)          Max(ns)  Name
+  ------------------------------------------------------------------------------------------
+    66.7%       5 677 336 037            816        6 957 520      474 436 205  poll
+    29.4%       2 500 335 028              5      500 067 006      500 100 444  pthread_cond_timedwait
+     3.1%         259 809 088            522          497 719      147 246 575  ioctl
+
+ ** CUDA API Summary
+   Time%           Total(ns)          Calls          Avg(ns)          Max(ns)  Name
+  ------------------------------------------------------------------------------------------
+    58.8%       1 239 253 919          3 887          318 820        1 335 204  cudaMemcpy_v3020
+    16.1%         340 355 526         61 440            5 540          155 993  cudaLaunchKernel_v7000
+     7.2%         152 553 800              2       76 276 900      150 134 412  cudaHostAlloc_v3020
+     7.2%         152 163 238             26        5 852 432      150 794 460  cudaMalloc_v3020
+     2.4%          51 601 909         11 520            4 479          345 959  cudaMemsetAsync_v3020
+
+ ** CUDA GPU Kernel Summary
+   Time%           Total(ns)          Calls          Avg(ns)          Max(ns)  Name
+  ------------------------------------------------------------------------------------------
+    31.7%         413 158 304          3 840          107 593          145 087  ampere_sgemm_64x64_nn
+    19.5%         253 908 786          1 920          132 244          145 951  ampere_sgemm_64x64_nt
+    13.1%         171 586 672          1 920           89 368          100 351  ampere_sgemm_64x64_tn
+    12.8%         166 566 174          3 840           43 377           92 863  Kernel2
+     5.9%          77 504 621          3 840           20 183           33 600  relu_back_kernel
+
+ ** CUDA MemOps Summary by Time
+   Time%           Total(ns)          Count          Avg(ns)          Max(ns)  Op
+  ------------------------------------------------------------------------------------------
+   100.0%         471 211 047          3 847          122 488          382 365  HtoD
+     0.0%              45 472             40            1 137            1 600  DtoH
+
+Accuracy is now quite trash, and we didnt get a 2x speedup like when going from 128 to 512 batch size.

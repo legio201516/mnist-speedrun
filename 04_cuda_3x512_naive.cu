@@ -4,7 +4,7 @@
 #include <time.h>
 #include <string.h>
 #include <cuda_runtime.h>
-#include <cublas_v2.h>
+
 #define INPUT_SIZE 784
 #define OUTPUT_SIZE 10
 #define BATCH_SIZE 128
@@ -13,7 +13,7 @@
 #define HIDDEN_SIZE 512
 #define EPOCHS 40
 #define LEARNING_RATE 0.01
-# define TILE_SIZE 16
+
 #define CUDA_CHECK(call) \
     do { \
         cudaError_t error = call; \
@@ -91,95 +91,44 @@ void load_labels(const char *filename, int *labels, int size) {
 
 
 
-__global__ void kernel_tiled_matmul_A_B_ (float* a, float* b , float* c , int M, int N, int K){// MKxKN=MN
-    int row = threadIdx.y + blockIdx.y*TILE_SIZE;
-    int col = threadIdx.x + blockIdx.x*TILE_SIZE;
-    __shared__ float As[TILE_SIZE][TILE_SIZE];// ( BLOCKSIZE.x >=16=TILE_SIZE)
-    __shared__ float Bs[TILE_SIZE][TILE_SIZE];
-    float sum=0.0;
-
-    // first load info into TILE_SIZE (each thread from tile reads one value)
-
-    for (int k=0; k<(K+TILE_SIZE-1)/TILE_SIZE;k++){
-        if (row < M && k * TILE_SIZE + threadIdx.x < K)  {       
-            As[threadIdx.y][threadIdx.x]=a[row*K+TILE_SIZE*k+threadIdx.x];}
-        else {
-            As[threadIdx.y][threadIdx.x] = 0.0f;}
-        if (col < N && k * TILE_SIZE + threadIdx.y < K)
-            Bs[threadIdx.y][threadIdx.x] = b[(k*TILE_SIZE+threadIdx.y)*N+col];
-        else
-            Bs[threadIdx.y][threadIdx.x] = 0.0f;
-        
-        __syncthreads();
-        // One thread computes 1 C value from SMEM As and Bs values
-        for (int l=0;l<TILE_SIZE;l++)// One thread does TILE_SIZE FMAs
-            sum+=As[threadIdx.y][l]*Bs[l][threadIdx.x];
-        __syncthreads();
-    }
+__global__ void kernel_matmul_A_B_ (float* a, float* b , float* c , int M, int N, int K){// MKxKN=MN
+    int row = threadIdx.y + blockIdx.y*blockDim.y;
+    int col = threadIdx.x + blockIdx.x*blockDim.x;
     if (row<M&&col<N){
+        float sum=0.0;
+        for (int l=0;l<K;l++){
+            sum+=a[K*row+l]*b[l*N+col];
+        }
         c[row*N+col]=sum;
     }
-}      
+}
 
-__global__ void kernel_tiled_matmul_At_B_ (float* a, float* b , float* c , int M, int N, int K){// (KM)txKN=MN
-    int row = threadIdx.y + blockIdx.y*TILE_SIZE;
-    int col = threadIdx.x + blockIdx.x*TILE_SIZE;
-    __shared__ float As[TILE_SIZE][TILE_SIZE];// ( BLOCKSIZE.x >=16=TILE_SIZE)
-    __shared__ float Bs[TILE_SIZE][TILE_SIZE];
-    float sum=0.0;
 
-    // first load info into TILE_SIZE (each thread from tile reads one value)
-
-    for (int k=0; k<(K+TILE_SIZE-1)/TILE_SIZE;k++){
-        if (row < M && k * TILE_SIZE + threadIdx.x < K)  {       
-            As[threadIdx.y][threadIdx.x]=a[(threadIdx.x+TILE_SIZE*k)*M+row];}
-        else {
-            As[threadIdx.y][threadIdx.x] = 0.0f;}
-        if (col < N && k * TILE_SIZE + threadIdx.y < K)
-            Bs[threadIdx.y][threadIdx.x] = b[(k*TILE_SIZE+threadIdx.y)*N+col];
-        else
-            Bs[threadIdx.y][threadIdx.x] = 0.0f;
-        
-        __syncthreads();
-        // One thread computes 1 C value from SMEM As and Bs values
-        for (int l=0;l<TILE_SIZE;l++)// One thread does TILE_SIZE FMAs
-            sum+=As[threadIdx.y][l]*Bs[l][threadIdx.x];
-        __syncthreads();
-    }
+__global__ void kernel_matmul_A_Bt_ (float* a, float* b , float* c , int M, int N, int K){// MKx(NK)t=MN
+    int row = threadIdx.y + blockIdx.y*blockDim.y;
+    int col = threadIdx.x + blockIdx.x*blockDim.x;
     if (row<M&&col<N){
+        float sum=0.0;
+        for (int l=0;l<K;l++){
+            sum+=a[K*row+l]*b[K*col+l];
+        }
         c[row*N+col]=sum;
     }
-}   
+}
 
-__global__ void kernel_tiled_matmul_A_Bt_ (float* a, float* b , float* c , int M, int N, int K){// MKx(NK)t=MN
-    int row = threadIdx.y + blockIdx.y*TILE_SIZE;
-    int col = threadIdx.x + blockIdx.x*TILE_SIZE;
-    __shared__ float As[TILE_SIZE][TILE_SIZE];// ( BLOCKSIZE.x >=16=TILE_SIZE)
-    __shared__ float Bs[TILE_SIZE][TILE_SIZE];
-    float sum=0.0;
 
-    // first load info into TILE_SIZE (each thread from tile reads one value)
-
-    for (int k=0; k<(K+TILE_SIZE-1)/TILE_SIZE;k++){
-        if (row < M && k * TILE_SIZE + threadIdx.x < K)  {       
-            As[threadIdx.y][threadIdx.x]=a[row*K+TILE_SIZE*k+threadIdx.x];}
-        else {
-            As[threadIdx.y][threadIdx.x] = 0.0f;}
-        if (col < N && k * TILE_SIZE + threadIdx.y < K)
-            Bs[threadIdx.y][threadIdx.x] = b[K*col+k*TILE_SIZE+threadIdx.y];
-        else
-            Bs[threadIdx.y][threadIdx.x] = 0.0f;
-        
-        __syncthreads();
-        // One thread computes 1 C value from SMEM As and Bs values
-        for (int l=0;l<TILE_SIZE;l++)// One thread does TILE_SIZE FMAs
-            sum+=As[threadIdx.y][l]*Bs[l][threadIdx.x];
-        __syncthreads();
-    }
+__global__ void kernel_matmul_At_B_ (float* a, float* b , float* c , int M, int N, int K){// (KM)txKN=MN
+    int row = threadIdx.y + blockIdx.y*blockDim.y;
+    int col = threadIdx.x + blockIdx.x*blockDim.x;
     if (row<M&&col<N){
+        float sum=0.0;
+        for (int l=0;l<K;l++){
+            sum+=a[l*M+row]*b[l*N+col];
+        }
         c[row*N+col]=sum;
     }
-} 
+}
+
 void init_weight(float* weights, int height, int width){// Perfoms he-initialization :
     float scale=sqrtf(2.0/height);
     for (int i = 0; i < height * width; i++) {
@@ -255,24 +204,13 @@ __global__ void softmax_kernel(float *x, int batch_size, int size) {
 }
 
 void forward(NeuralNetwork* nn, float* batch_data, float* hidden, float* hidden2, float * output){
-    dim3 block_size(16, 16);
-    float alpha = 1.0f, beta = 0.0f;
-    // Create cuBLAS handle
-    cublasHandle_t handle;
-    cublasCreate(&handle);    
+    dim3 block_size(32, 32);
 
     // W1 : batch_data (B x I) * weights1 (I x H) -> hidden (B x H)
     dim3 grid1_size((HIDDEN_SIZE+block_size.x-1)/block_size.x , ( BATCH_SIZE+block_size.y-1)/block_size.y);
-    //kernel_tiled_matmul_A_B_<<<grid1_size,block_size>>>(batch_data,nn->weights1, hidden , BATCH_SIZE, HIDDEN_SIZE, INPUT_SIZE);
-    cublasSgemm(handle, CUBLAS_OP_N, CUBLAS_OP_N, BATCH_SIZE, HIDDEN_SIZE, INPUT_SIZE, &alpha, batch_data, INPUT_SIZE, nn->weights1, HIDDEN_SIZE, &beta, hidden, HIDDEN_SIZE);
-
+    kernel_matmul_A_B_<<<grid1_size,block_size>>>(batch_data,nn->weights1, hidden , BATCH_SIZE, HIDDEN_SIZE, INPUT_SIZE);
     CUDA_CHECK(cudaGetLastError());
 
-    CUBLAS_CHECK(cublasSgemm(nn->cublas_handle, CUBLAS_OP_N, CUBLAS_OP_N,
-                           HIDDEN_SIZE, batch_size, INPUT_SIZE,
-                           &alpha, nn->d_weights1, HIDDEN_SIZE,
-                           nn->d_input_batch, INPUT_SIZE, &beta,
-                           nn->d_fc1_output, HIDDEN_SIZE));
     //b1
     kernel_bias_forward<<<(BATCH_SIZE * HIDDEN_SIZE + 255) / 256, 256>>>(hidden,nn->bias1,HIDDEN_SIZE);
     CUDA_CHECK(cudaGetLastError());
@@ -283,8 +221,7 @@ void forward(NeuralNetwork* nn, float* batch_data, float* hidden, float* hidden2
 
     // W2 : hidden (B x H) * weights2 (H x H) -> hidden2 (B x H)
     dim3 grid2_size((HIDDEN_SIZE+block_size.x-1)/block_size.x , ( BATCH_SIZE+block_size.y-1)/block_size.y);
-    //kernel_tiled_matmul_A_B_<<<grid2_size,block_size>>>(hidden,nn->weights2, hidden2 , BATCH_SIZE, HIDDEN_SIZE, HIDDEN_SIZE);
-    cublasSgemm(handle, CUBLAS_OP_N, CUBLAS_OP_N, BATCH_SIZE, HIDDEN_SIZE, HIDDEN_SIZE, &alpha, hidden, HIDDEN_SIZE, nn->weights2, HIDDEN_SIZE, &beta, hidden2, HIDDEN_SIZE);
+    kernel_matmul_A_B_<<<grid2_size,block_size>>>(hidden,nn->weights2, hidden2 , BATCH_SIZE, HIDDEN_SIZE, HIDDEN_SIZE);
     CUDA_CHECK(cudaGetLastError());
 
     //b2
@@ -297,9 +234,7 @@ void forward(NeuralNetwork* nn, float* batch_data, float* hidden, float* hidden2
 
     // W3 : hidden2 (B x H) * weights3 (H x O) -> output (B x O)
     dim3 grid3_size((OUTPUT_SIZE+block_size.x-1)/block_size.x , ( BATCH_SIZE+block_size.y-1)/block_size.y);
-    //kernel_tiled_matmul_A_B_<<<grid3_size,block_size>>>(hidden2,nn->weights3, output , BATCH_SIZE, OUTPUT_SIZE, HIDDEN_SIZE);
-    cublasSgemm(handle, CUBLAS_OP_N, CUBLAS_OP_N, BATCH_SIZE, OUTPUT_SIZE, HIDDEN_SIZE, &alpha, hidden2, HIDDEN_SIZE, nn->weights3, HIDDEN_SIZE, &beta, output, OUTPUT_SIZE);
-
+    kernel_matmul_A_B_<<<grid3_size,block_size>>>(hidden2,nn->weights3, output , BATCH_SIZE, OUTPUT_SIZE, HIDDEN_SIZE);
     CUDA_CHECK(cudaGetLastError());
 
     //b3
@@ -383,33 +318,33 @@ void backward(NeuralNetwork* nn, float *batch_data,float*  hidden, float* hidden
 
     // ===================== LAYER 3 =====================
     dim3 grid3((OUTPUT_SIZE+block_size.x-1)/block_size.x,(HIDDEN_SIZE+block_size.y-1)/block_size.y);
-    kernel_tiled_matmul_At_B_<<<grid3,block_size>>>(hidden2, grad_output,nn->gradweights3,  HIDDEN_SIZE, OUTPUT_SIZE, BATCH_SIZE );
+    kernel_matmul_At_B_<<<grid3,block_size>>>(hidden2, grad_output,nn->gradweights3,  HIDDEN_SIZE, OUTPUT_SIZE, BATCH_SIZE );
     CUDA_CHECK(cudaGetLastError());
     kernel_bias_back<<<(OUTPUT_SIZE+255)/256,256>>>(nn->gradbias3, grad_output, OUTPUT_SIZE);
 
     // dA2 = grad_output @ W3.T
     dim3 grid_da2((HIDDEN_SIZE+block_size.x-1)/block_size.x,(BATCH_SIZE+block_size.y-1)/block_size.y);
-    kernel_tiled_matmul_A_Bt_<<<grid_da2,block_size>>>(grad_output,nn->weights3,dA2, BATCH_SIZE, HIDDEN_SIZE, OUTPUT_SIZE );
+    kernel_matmul_A_Bt_<<<grid_da2,block_size>>>(grad_output,nn->weights3,dA2, BATCH_SIZE, HIDDEN_SIZE, OUTPUT_SIZE );
     CUDA_CHECK(cudaGetLastError());
     relu_back_kernel<<<(BATCH_SIZE * HIDDEN_SIZE+255)/256,256>>>(hidden2,dA2,BATCH_SIZE * HIDDEN_SIZE );
     CUDA_CHECK(cudaGetLastError());
 
     // ===================== LAYER 2 =====================
     dim3 grid2((HIDDEN_SIZE+block_size.x-1)/block_size.x,(HIDDEN_SIZE+block_size.y-1)/block_size.y);
-    kernel_tiled_matmul_At_B_<<<grid2,block_size>>>(hidden, dA2,nn->gradweights2,  HIDDEN_SIZE, HIDDEN_SIZE, BATCH_SIZE );
+    kernel_matmul_At_B_<<<grid2,block_size>>>(hidden, dA2,nn->gradweights2,  HIDDEN_SIZE, HIDDEN_SIZE, BATCH_SIZE );
     CUDA_CHECK(cudaGetLastError());
     kernel_bias_back<<<(HIDDEN_SIZE+255)/256,256>>>(nn->gradbias2, dA2, HIDDEN_SIZE);
 
     // dA1 = dA2 @ W2.T
     dim3 grid_da1((HIDDEN_SIZE+block_size.x-1)/block_size.x,(BATCH_SIZE+block_size.y-1)/block_size.y);
-    kernel_tiled_matmul_A_Bt_<<<grid_da1,block_size>>>(dA2,nn->weights2,dA1, BATCH_SIZE, HIDDEN_SIZE, HIDDEN_SIZE );
+    kernel_matmul_A_Bt_<<<grid_da1,block_size>>>(dA2,nn->weights2,dA1, BATCH_SIZE, HIDDEN_SIZE, HIDDEN_SIZE );
     CUDA_CHECK(cudaGetLastError());
     relu_back_kernel<<<(BATCH_SIZE * HIDDEN_SIZE+255)/256,256>>>(hidden,dA1,BATCH_SIZE * HIDDEN_SIZE );
     CUDA_CHECK(cudaGetLastError());
 
     // ===================== LAYER 1 =====================
     dim3 grid1((HIDDEN_SIZE+block_size.x-1)/block_size.x,(INPUT_SIZE+block_size.y-1)/block_size.y);
-    kernel_tiled_matmul_At_B_<<<grid1,block_size>>>(batch_data, dA1, nn->gradweights1,INPUT_SIZE, HIDDEN_SIZE,BATCH_SIZE );
+    kernel_matmul_At_B_<<<grid1,block_size>>>(batch_data, dA1, nn->gradweights1,INPUT_SIZE, HIDDEN_SIZE,BATCH_SIZE );
     CUDA_CHECK(cudaGetLastError());
     kernel_bias_back<<<(HIDDEN_SIZE+255)/256,256>>>(nn->gradbias1, dA1, HIDDEN_SIZE);
 }
